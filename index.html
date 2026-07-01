@@ -642,6 +642,8 @@ function openDatePopup(dateStr,dayLabel){
 
 document.getElementById("datePopupClose").addEventListener("click",()=>document.getElementById("datePopupOverlay").classList.remove("open"));
 document.getElementById("datePopupOverlay").addEventListener("click",e=>{if(e.target===document.getElementById("datePopupOverlay"))document.getElementById("datePopupOverlay").classList.remove("open");});
+
+function openCalPopup(item){
   document.getElementById("calPopupName").textContent=item.name;
   document.getElementById("calPopupMedia").textContent=item.media;
   document.getElementById("calPopupPeriod").textContent=fmtDate(item.start,item.startTime)+" → "+fmtDate(item.end,item.endTime);
