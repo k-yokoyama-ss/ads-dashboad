@@ -511,10 +511,24 @@ function renderCalendar(){
       cell_div.style.cssText="padding:0 2px;min-height:4px;";
       if(cell.cur){
         const cellStr=`${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(cell.d).padStart(2,'0')}`;
+        // 速報値（媒体ごと）
         data.forEach(item=>{
-          const deadlines = getDeadlines(item);
-          deadlines.forEach(dl=>{
+          getDeadlines(item).forEach(dl=>{
             if(dl.date===cellStr){
+              const badge=document.createElement("div");
+              badge.className=`deadline-badge ${dl.type}${dl.done?" done":""}`;
+              badge.textContent=`${item.name}（${item.media}） ${dl.label}`;
+              cell_div.appendChild(badge);
+            }
+          });
+        });
+        // レポート・請求書（案件ごと・重複除去）
+        const seen=new Set();
+        data.forEach(item=>{
+          if(seen.has(item.name)) return;
+          getCampaignDeadlines(item.name).forEach(dl=>{
+            if(dl.date===cellStr){
+              seen.add(item.name);
               const badge=document.createElement("div");
               badge.className=`deadline-badge ${dl.type}${dl.done?" done":""}`;
               badge.textContent=`${item.name} ${dl.label}`;
@@ -583,17 +597,32 @@ function addBusinessDays(dateStr, days){
   return d.toISOString().slice(0,10);
 }
 
+function statusKey(item){ return item.name+"|"+item.media; }
+function campaignKey(name){ return name+"|_campaign"; }
+
 function getDeadlines(item){
   const key = statusKey(item);
   const st = statusData[key] || {};
   const deadlines = [];
   if(item.end){
-    const autoReport = new Date(item.end+"T00:00:00");
+    deadlines.push({type:"sokcho", label:"速報値", field:"sokuchoDate", date:st.sokuchoDate||"", done:!!st.sokuhochi, key});
+  }
+  return deadlines;
+}
+
+function getCampaignDeadlines(name){
+  const ckey = campaignKey(name);
+  const st = statusData[ckey] || {};
+  // 案件の最終終了日を取得
+  const items = data.filter(d=>d.name===name);
+  const latestEnd = items.reduce((max,i)=>i.end>max?i.end:max, items[0]?.end||"");
+  const deadlines = [];
+  if(latestEnd){
+    const autoReport = new Date(latestEnd+"T00:00:00");
     autoReport.setDate(autoReport.getDate()+7);
-    const autoSeikyu = addBusinessDays(item.end,3);
-    deadlines.push({type:"sokcho",    label:"速報値",    field:"sokuchoDate",    date:st.sokuchoDate||"",              done:!!st.sokuhochi, key});
-    deadlines.push({type:"report",    label:"レポート",  field:"reportDate",     date:st.reportDate||autoReport.toISOString().slice(0,10), done:!!st.report,    key});
-    deadlines.push({type:"seikyusho", label:"請求書提出",field:"seikyushoDate",  date:st.seikyushoDate||autoSeikyu,    done:!!st.seikyusho, key});
+    const autoSeikyu = addBusinessDays(latestEnd,3);
+    deadlines.push({type:"report",    label:"レポート",   field:"reportDate",    date:st.reportDate||autoReport.toISOString().slice(0,10), done:!!st.report,    key:ckey});
+    deadlines.push({type:"seikyusho", label:"請求書提出", field:"seikyushoDate", date:st.seikyushoDate||autoSeikyu, done:!!st.seikyusho, key:ckey});
   }
   return deadlines;
 }
@@ -617,10 +646,6 @@ function setStatus(key,field,value){
   fetch(`${GAS_URL}?action=setStatus&key=${encodeURIComponent(key)}&field=${field}&value=${value}`)
     .then(r=>r.json())
     .catch(()=>{});
-}
-
-function statusKey(item){
-  return item.name+"|"+item.media;
 }
 
 function openDatePopup(dateStr,dayLabel){
@@ -654,6 +679,55 @@ function openDatePopup(dateStr,dayLabel){
     div.className="status-campaign";
     div.innerHTML=`<div class="status-campaign-name">${name}</div>`;
 
+    // レポート・請求書（案件単位）
+    const campDeadlines = getCampaignDeadlines(name);
+    const campPickerWrap = document.createElement("div");
+    campPickerWrap.style.cssText="margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--line);";
+    campDeadlines.forEach(dl=>{
+      const pickerDiv=document.createElement("div");
+      pickerDiv.className="sokcho-date-row";
+      const inputId=`date-${dl.field}-${dl.key.replace(/[^a-zA-Z0-9]/g,'_')}`;
+      const icon=dl.type==="report"?"📄":"🧾";
+      pickerDiv.innerHTML=`
+        <label>${icon} ${dl.label}</label>
+        <input type="date" id="${inputId}" value="${dl.date||''}">
+        <button data-key="${dl.key}" data-field="${dl.field}">設定</button>
+      `;
+      // チェックボックス
+      const checkField=dl.type==="report"?"report":"seikyusho";
+      const cst=statusData[dl.key]||{};
+      const checked=!!cst[checkField];
+      const checkRow=document.createElement("div");
+      checkRow.className="status-check"+(checked?" checked":"");
+      const cid=`chk-${dl.key}-${checkField}`.replace(/[^a-zA-Z0-9-]/g,"_");
+      checkRow.innerHTML=`<input type="checkbox" id="${cid}" ${checked?"checked":""}><label for="${cid}">完了</label>${checked?'<span style="font-size:11px;color:var(--accent);">✓ 完了</span>':""}`;
+      checkRow.querySelector("input").addEventListener("change",e=>{
+        const val=e.target.checked;
+        if(!statusData[dl.key])statusData[dl.key]={};
+        statusData[dl.key][checkField]=val;
+        checkRow.className="status-check"+(val?" checked":"");
+        const sp=checkRow.querySelector("span");
+        if(sp)sp.remove();
+        if(val){const s=document.createElement("span");s.style.cssText="font-size:11px;color:var(--accent);";s.textContent="✓ 完了";checkRow.appendChild(s);}
+        setStatus(dl.key,checkField,val);
+      });
+      pickerDiv.querySelector("button").addEventListener("click",e=>{
+        const k=e.target.dataset.key;
+        const f=e.target.dataset.field;
+        const val=document.getElementById(`date-${f}-${k.replace(/[^a-zA-Z0-9]/g,'_')}`).value;
+        if(!val)return;
+        if(!statusData[k])statusData[k]={};
+        statusData[k][f]=val;
+        saveDate(k,f,val);
+        renderCalendar();
+        e.target.textContent="✓";
+        setTimeout(()=>e.target.textContent="設定",1500);
+      });
+      campPickerWrap.appendChild(pickerDiv);
+      campPickerWrap.appendChild(checkRow);
+    });
+    div.appendChild(campPickerWrap);
+
     groups[name].forEach(item=>{
       const key=statusKey(item);
       const st=statusData[key]||{sokuhochi:false,report:false,seikyusho:false};
@@ -663,7 +737,7 @@ function openDatePopup(dateStr,dayLabel){
       mediaDiv.style.cssText="margin-bottom:12px;";
       mediaDiv.innerHTML=`<span class="badge ${mediaBadgeClass(item.media)}" style="margin-bottom:6px;display:inline-block;">${item.media}</span>`;
 
-      // 日付ピッカー（速報値・レポート・請求書）
+      // 速報値日付ピッカー（媒体ごと）
       const deadlines = getDeadlines(item);
       const pickerWrap = document.createElement("div");
       pickerWrap.style.cssText="margin-bottom:8px;";
@@ -672,7 +746,7 @@ function openDatePopup(dateStr,dayLabel){
         pickerDiv.className="sokcho-date-row";
         const inputId=`date-${dl.field}-${key.replace(/[^a-zA-Z0-9]/g,'_')}`;
         pickerDiv.innerHTML=`
-          <label>${dl.type==="sokcho"?"📊 速報値":dl.type==="report"?"📄 レポート":"🧾 請求書"}</label>
+          <label>📊 速報値</label>
           <input type="date" id="${inputId}" value="${dl.date||''}">
           <button data-key="${key}" data-field="${dl.field}">設定</button>
         `;
