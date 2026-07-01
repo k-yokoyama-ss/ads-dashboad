@@ -17,7 +17,7 @@
   :root{--bg:#F6F5F1;--card:#FFFFFF;--line:#E4E2DA;--ink:#1F1E1B;--sub:#6B6960;--faint:#A6A399;--accent:#1F5F4F;--accent-bg:#E4EFEB;--warn:#B5651D;--warn-bg:#F8EBDD;--danger:#A23B2E;--danger-bg:#F7E6E2;--done-bg:#EFEEE9;}
   *{box-sizing:border-box;}
   body{margin:0;background:var(--bg);color:var(--ink);font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;padding:32px 24px 80px;}
-  .wrap{max-width:980px;margin:0 auto;}
+  .wrap{max-width:1200px;margin:0 auto;}
   header{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:24px;flex-wrap:wrap;gap:12px;}
   h1{font-size:22px;font-weight:700;margin:0;}
   .updated{font-size:12px;color:var(--sub);}
@@ -64,28 +64,30 @@
 
   /* カレンダー */
   .cal-wrap{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;}
-  .cal-header{display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid var(--line);}
-  .cal-dow{text-align:center;padding:8px 0;font-size:12px;font-weight:700;color:var(--sub);}
+  .cal-header{display:grid;grid-template-columns:repeat(7,1fr);border-bottom:2px solid var(--line);}
+  .cal-dow{text-align:center;padding:12px 0;font-size:13px;font-weight:700;color:var(--sub);}
   .cal-dow.sun{color:var(--danger);}
   .cal-dow.sat{color:var(--accent);}
   .cal-week{border-bottom:1px solid var(--line);}
   .cal-week:last-child{border-bottom:none;}
   .cal-days{display:grid;grid-template-columns:repeat(7,1fr);}
-  .cal-day{padding:6px 4px 4px;min-height:28px;border-right:1px solid #F0EFEB;}
+  .cal-day{padding:10px 8px 6px;min-height:80px;border-right:1px solid #F0EFEB;}
   .cal-day:last-child{border-right:none;}
-  .cal-day-num{font-size:12px;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;}
+  .cal-day-num{font-size:14px;width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;font-weight:500;}
   .cal-day-num.today{background:var(--accent);color:#fff;font-weight:700;}
   .cal-day-num.sun{color:var(--danger);}
   .cal-day-num.sat{color:var(--accent);}
   .cal-day-num.other{color:var(--faint);}
-  .cal-bars{display:grid;grid-template-columns:repeat(7,1fr);padding:2px 0 6px;}
-  .cal-bar{height:20px;display:flex;align-items:center;padding:0 4px;margin:1px 0;font-size:10px;font-weight:700;white-space:nowrap;overflow:hidden;}
-  .cal-bar.bar-start{border-radius:4px 0 0 4px;}
-  .cal-bar.bar-end{border-radius:0 4px 4px 0;}
-  .cal-bar.bar-single{border-radius:4px;}
-  .cal-legend{display:flex;gap:12px;padding:10px 14px;flex-wrap:wrap;align-items:center;border-top:1px solid var(--line);}
-  .cal-legend-item{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--sub);}
-  .cal-legend-dot{width:10px;height:10px;border-radius:2px;}
+  .cal-bars{display:grid;grid-template-columns:repeat(7,1fr);padding:4px 0 12px;gap:3px 0;}
+  .cal-bar{height:26px;display:flex;align-items:center;padding:0 8px;font-size:11px;font-weight:700;white-space:nowrap;overflow:visible;}
+  .cal-bar.bar-start{border-radius:6px 0 0 6px;margin-left:4px;}
+  .cal-bar.bar-end{border-radius:0 6px 6px 0;margin-right:4px;}
+  .cal-bar.bar-single{border-radius:6px;margin:0 4px;}
+  .cal-bar.bar-mid{border-radius:0;}
+  .cal-bar.bar-empty{background:transparent!important;}
+  .cal-legend{display:flex;gap:16px;padding:12px 16px;flex-wrap:wrap;align-items:center;border-top:1px solid var(--line);background:var(--bg);}
+  .cal-legend-item{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--sub);}
+  .cal-legend-dot{width:12px;height:12px;border-radius:3px;}
 
   .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.4);display:none;align-items:center;justify-content:center;padding:20px;z-index:10;}
   .modal-overlay.open{display:flex;}
@@ -378,25 +380,28 @@ function renderCalendar(){
       if(s>weekEnd||e<weekStart)return;
 
       const [bgColor,textColor]=mediaColor(item.media);
-      const grid=document.createElement("div");
-      grid.style.display="contents";
 
       week.forEach((cell,di)=>{
         const cellDate=cell.cur?new Date(calYear,calMonth,cell.d):null;
         const wrapper=document.createElement("div");
         if(cellDate&&cellDate>=s&&cellDate<=e){
-          const isStart=cellDate.getTime()===s.getTime()||di===0;
-          const isEnd=cellDate.getTime()===e.getTime()||(di===6)||cell.d===daysInMonth;
+          const isStart=cellDate.getTime()===s.getTime();
+          const isEnd=cellDate.getTime()===e.getTime();
+          const isWeekStart=di===0;
+          const isWeekEnd=di===6||cell.d===daysInMonth;
           let cls="cal-bar";
-          if(isStart&&isEnd)cls+=" bar-single";
-          else if(isStart)cls+=" bar-start";
-          else if(isEnd)cls+=" bar-end";
+          if(isStart&&isEnd) cls+=" bar-single";
+          else if(isStart||isWeekStart) cls+=" bar-start";
+          else if(isEnd||isWeekEnd) cls+=" bar-end";
+          else cls+=" bar-mid";
           wrapper.className=cls;
           wrapper.style.background=bgColor;
           wrapper.style.color=textColor;
-          if(isStart){
+          if(isStart||isWeekStart){
             wrapper.textContent=`${item.name}（${item.media}）`;
           }
+        } else {
+          wrapper.className="cal-bar bar-empty";
         }
         barsDiv.appendChild(wrapper);
       });
