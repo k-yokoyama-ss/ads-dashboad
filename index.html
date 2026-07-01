@@ -41,7 +41,7 @@
   .campaign-head .name{font-size:16px;font-weight:700;margin:0;}
   .campaign-head .total{font-size:13px;color:var(--sub);}
   .campaign-head .total b{color:var(--ink);font-size:14px;}
-  .row{display:grid;grid-template-columns:120px 220px 1fr 110px 28px;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);}
+  .row{display:grid;grid-template-columns:120px 220px 1fr 110px;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);}
   .row:last-child{border-bottom:none;}
   .row.done{opacity:.5;}
   .badge{font-size:11px;padding:3px 9px;border-radius:5px;background:var(--accent-bg);color:var(--accent);font-weight:700;justify-self:start;}
@@ -84,6 +84,10 @@
   .cal-bar.bar-end{border-radius:0 6px 6px 0;margin-right:4px;}
   .cal-bar.bar-single{border-radius:6px;margin:0 4px;cursor:pointer;}
   .cal-bar.bar-mid{border-radius:0;}
+  .cal-bar.bar-week-start{border-radius:0;margin-left:0;cursor:pointer;}
+  .cal-bar.bar-week-end{border-radius:0;margin-right:0;}
+  .cal-bar.bar-week-start.bar-end{border-radius:0 6px 6px 0;margin-right:4px;}
+  .cal-bar.bar-start.bar-week-end{border-radius:6px 0 0 6px;margin-left:4px;}
   .cal-bar.bar-empty{background:transparent!important;}
 
   .cal-popup-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.3);display:none;align-items:center;justify-content:center;z-index:100;}
@@ -335,19 +339,12 @@ function render(){
         <div class="range">${fmtDate(item.start,item.startTime)}<span class="arrow">→</span>${fmtDate(item.end,item.endTime)}</div>
         <div class="days-left">${statusLabel(status,item,today)}</div>
         <div class="row-budget">¥${(item.gross||item.budget||0).toLocaleString()}<div style="font-size:11px;color:var(--sub);font-weight:400;">媒体費 ¥${(item.budget||0).toLocaleString()}${item.gross?` ・ 手数料 ¥${(item.gross-item.budget).toLocaleString()}`:""}</div></div>
-        <input type="checkbox" ${item.done?"checked":""} data-id="${item.id}" title="完了">
       `;
       card.appendChild(row);
     });
     list.appendChild(card);
   });
   document.getElementById("emptyMsg").style.display=visible?"none":"block";
-  list.querySelectorAll("input[type=checkbox]").forEach(cb=>{
-    cb.addEventListener("change",e=>{
-      const item=data.find(d=>d.id===e.target.dataset.id);
-      if(item){item.done=e.target.checked;saveData();render();}
-    });
-  });
 }
 
 function renderCalendar(){
@@ -410,22 +407,33 @@ function renderCalendar(){
         const cellDate=cell.cur?new Date(calYear,calMonth,cell.d):null;
         const wrapper=document.createElement("div");
         if(cellDate&&cellDate>=s&&cellDate<=e){
-          const isStart=cellDate.getTime()===s.getTime();
-          const isEnd=cellDate.getTime()===e.getTime();
+          const cellStr=`${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(cell.d).padStart(2,'0')}`;
+          const isActualStart=cellStr===item.start;
+          const isActualEnd=cellStr===item.end;
           const isWeekStart=di===0;
-          const isWeekEnd=di===6||cell.d===daysInMonth;
+          const isWeekEnd=di===6||(cell.cur&&cell.d===daysInMonth);
+
           let cls="cal-bar";
-          if(isStart&&isEnd) cls+=" bar-single";
-          else if(isStart||isWeekStart) cls+=" bar-start";
-          else if(isEnd||isWeekEnd) cls+=" bar-end";
-          else cls+=" bar-mid";
+          if(isActualStart&&isActualEnd){
+            cls+=" bar-single";
+          } else if(isActualStart){
+            cls+=isWeekEnd?" bar-start bar-week-end":" bar-start";
+          } else if(isActualEnd){
+            cls+=isWeekStart?" bar-week-start bar-end":" bar-end";
+          } else if(isWeekStart){
+            cls+=isWeekEnd?" bar-mid":" bar-week-start";
+          } else if(isWeekEnd){
+            cls+=" bar-week-end";
+          } else {
+            cls+=" bar-mid";
+          }
           wrapper.className=cls;
           wrapper.style.background=bgColor;
           wrapper.style.color=textColor;
-          if(isStart||isWeekStart){
+          if(isActualStart||isWeekStart){
             wrapper.textContent=item.name;
           }
-          if(isStart||isWeekStart){
+          if(isActualStart||isWeekStart){
             wrapper.addEventListener("click",()=>openCalPopup(item));
           }
         } else {
