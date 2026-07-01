@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>広告案件ダッシュボード</title>
+<title>松竹案件ダッシュボード</title>
 <style>
   #pw-screen{position:fixed;inset:0;background:#F6F5F1;display:flex;align-items:center;justify-content:center;z-index:9999;}
   #pw-screen.hidden{display:none;}
@@ -147,7 +147,7 @@
 
 <div id="pw-screen">
   <div class="pw-box">
-    <h2>広告案件ダッシュボード</h2>
+    <h2>松竹案件ダッシュボード</h2>
     <p>パスワードを入力してください</p>
     <input type="password" id="pw-input" placeholder="••••••••" autocomplete="current-password">
     <button onclick="checkPassword()">ログイン</button>
@@ -190,7 +190,7 @@
 
 <div class="wrap">
   <header>
-    <h1>広告案件ダッシュボード</h1>
+    <h1>松竹案件ダッシュボード</h1>
     <div class="updated" id="updatedAt"></div>
   </header>
 
@@ -413,7 +413,7 @@ function render(){
         <span class="badge ${mediaBadgeClass(item.media)}">${item.media}</span>
         <div class="range">${fmtDate(item.start,item.startTime)}<span class="arrow">→</span>${fmtDate(item.end,item.endTime)}</div>
         <div class="days-left">${statusLabel(status,item,today)}</div>
-        <div class="row-budget">¥${(item.gross||item.budget||0).toLocaleString()}<div style="font-size:11px;color:var(--sub);font-weight:400;">媒体費 ¥${(item.budget||0).toLocaleString()}${item.gross?` ・ 手数料 ¥${(item.gross-item.budget).toLocaleString()}`:""}</div></div>
+        <div class="row-budget">¥${(item.gross||item.budget||0).toLocaleString()}<div style="font-size:11px;color:var(--sub);font-weight:400;">媒体費 ¥${(item.budget||0).toLocaleString()}</div>${item.gross?`<div style="font-size:11px;color:var(--sub);font-weight:400;">手数料 ¥${(item.gross-item.budget).toLocaleString()}</div>`:""}</div>
       `;
       card.appendChild(row);
     });
