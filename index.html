@@ -379,6 +379,20 @@ function fmtDate(d, time){
   return time ? base + " " + time : base;
 }
 
+function parseDate(str){
+  if (!str) return "";
+  str = str.trim();
+  // YYYY-MM-DD形式はそのまま返す
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+  // MM/DD/YYYYやYYYY/MM/DD形式に対応
+  const parts = str.split(/[\/\-]/);
+  if (parts.length === 3) {
+    if (parts[0].length === 4) return `${parts[0]}-${parts[1].padStart(2,"0")}-${parts[2].padStart(2,"0")}`;
+    if (parts[2].length === 4) return `${parts[2]}-${parts[0].padStart(2,"0")}-${parts[1].padStart(2,"0")}`;
+  }
+  return str;
+}
+
 function statusOf(item, today){
   const start = new Date(item.start);
   const end = new Date(item.end);
@@ -538,7 +552,7 @@ function parseCSV(text){
     const gross = Number(String(r[2]).replace(/[^0-9.-]/g,"")) || 0;
     const feeRate = Number(String(r[3]).replace(/[^0-9.-]/g,"")) || 0;
     const budget = Number(String(r[4]).replace(/[^0-9.-]/g,"")) || 0;
-    const start = r[5], end = r[6];
+    const start = parseDate(r[5]), end = parseDate(r[6]);
     const startTime = r[7] || "", endTime = r[8] || "";
     return {
       id: stableId(name, media, start),
