@@ -51,6 +51,8 @@
   .badge-facebook{background:#378ADD;color:#E6F1FB;}
   .badge-tiktok{background:#1D9E75;color:#E1F5EE;}
   .badge-google{background:#EF9F27;color:#412402;}
+  .badge-line{background:#06C755;color:#F0FFF4;}
+  .badge-yda{background:#FF6B35;color:#FFF0EB;}
   .badge-other{background:#888780;color:#F1EFE8;}
   .range{font-size:14px;font-weight:700;letter-spacing:.1px;white-space:nowrap;}
   .range .arrow{color:var(--faint);margin:0 3px;font-weight:400;}
@@ -284,12 +286,28 @@ function statusLabel(status,item,today){
   return d<=0?"本日まで":`残り${d}日`;
 }
 function mediaBadgeClass(media){
-  const map={"Instagram":"badge-instagram","YouTube":"badge-youtube","X(Twitter)":"badge-x","Facebook":"badge-facebook","TikTok":"badge-tiktok","Google広告":"badge-google"};
-  return map[media]||"badge-other";
+  const m=media.toLowerCase();
+  if(m.includes("instagram")||m==="ig")return"badge-instagram";
+  if(m.includes("youtube")||m==="yt")return"badge-youtube";
+  if(m.includes("x")||m.includes("twitter"))return"badge-x";
+  if(m.includes("facebook")||m==="fb")return"badge-facebook";
+  if(m.includes("tiktok"))return"badge-tiktok";
+  if(m.includes("google")||m==="gdn")return"badge-google";
+  if(m.includes("line"))return"badge-line";
+  if(m.includes("yda"))return"badge-yda";
+  return"badge-other";
 }
 function mediaColor(media){
-  const map={"Instagram":["#F0997B","#4A1B0C"],"YouTube":["#E24B4A","#FCEBEB"],"X(Twitter)":["#7F77DD","#EEEDFE"],"Facebook":["#378ADD","#E6F1FB"],"TikTok":["#1D9E75","#E1F5EE"],"Google広告":["#EF9F27","#412402"]};
-  return map[media]||["#888780","#F1EFE8"];
+  const m=media.toLowerCase();
+  if(m.includes("instagram")||m==="ig")return["#F0997B","#4A1B0C"];
+  if(m.includes("youtube")||m==="yt")return["#E24B4A","#FCEBEB"];
+  if(m.includes("x")||m.includes("twitter"))return["#7F77DD","#EEEDFE"];
+  if(m.includes("facebook")||m==="fb")return["#378ADD","#E6F1FB"];
+  if(m.includes("tiktok"))return["#1D9E75","#E1F5EE"];
+  if(m.includes("google")||m==="gdn")return["#EF9F27","#412402"];
+  if(m.includes("line"))return["#06C755","#F0FFF4"];
+  if(m.includes("yda"))return["#FF6B35","#FFF0EB"];
+  return["#888780","#F1EFE8"];
 }
 
 function groupByCampaign(list){
