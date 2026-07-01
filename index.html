@@ -41,7 +41,7 @@
   .campaign-head .name{font-size:16px;font-weight:700;margin:0;}
   .campaign-head .total{font-size:13px;color:var(--sub);}
   .campaign-head .total b{color:var(--ink);font-size:14px;}
-  .row{display:grid;grid-template-columns:120px 220px 1fr 110px;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);}
+  .row{display:grid;grid-template-columns:120px 1fr 100px 120px;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);}
   .row:last-child{border-bottom:none;}
   .row.done{opacity:.5;}
   .badge{font-size:11px;padding:3px 9px;border-radius:5px;background:var(--accent-bg);color:var(--accent);font-weight:700;justify-self:start;}
@@ -54,7 +54,7 @@
   .badge-line{background:#06C755;color:#F0FFF4;}
   .badge-yda{background:#FF6B35;color:#FFF0EB;}
   .badge-other{background:#888780;color:#F1EFE8;}
-  .range{font-size:14px;font-weight:700;letter-spacing:.1px;white-space:nowrap;}
+  .range{font-size:13px;font-weight:700;letter-spacing:.1px;white-space:normal;line-height:1.5;}
   .range .arrow{color:var(--faint);margin:0 3px;font-weight:400;}
   .days-left{font-size:12px;padding:2px 8px;border-radius:6px;justify-self:start;}
   .row-budget{font-size:14px;font-weight:700;text-align:right;}
@@ -123,7 +123,15 @@
   .status-check label{font-size:13px;cursor:pointer;flex:1;}
   .status-check.checked{background:var(--accent-bg);}
   .status-check.checked label{color:var(--accent);font-weight:700;}
-  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.4);display:none;align-items:center;justify-content:center;padding:20px;z-index:10;}
+  .sokcho-date-row{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;background:var(--bg);margin-top:4px;}
+  .sokcho-date-row label{font-size:12px;color:var(--sub);white-space:nowrap;}
+  .sokcho-date-row input[type=date]{border:1px solid var(--line);border-radius:6px;padding:4px 8px;font-size:12px;font-family:inherit;background:var(--card);color:var(--ink);flex:1;}
+  .sokcho-date-row button{font-size:11px;padding:4px 10px;border-radius:6px;border:1px solid var(--line);background:var(--accent);color:#fff;cursor:pointer;white-space:nowrap;}
+  .deadline-badge{font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;margin:1px 2px;display:inline-flex;align-items:center;gap:3px;white-space:nowrap;}
+  .deadline-badge.sokcho{background:#FEF3C7;color:#92400E;}
+  .deadline-badge.report{background:#DBEAFE;color:#1E40AF;}
+  .deadline-badge.seikyusho{background:#FCE7F3;color:#9D174D;}
+  .deadline-badge.done{opacity:0.4;text-decoration:line-through;}
   .modal-overlay.open{display:flex;}
   .modal{background:var(--card);border-radius:12px;padding:24px;width:100%;max-width:420px;}
   .modal h2{font-size:16px;margin:0 0 18px;}
@@ -493,6 +501,30 @@ function renderCalendar(){
       });
     });
     weekDiv.appendChild(barsDiv);
+
+    // 期限バッジ
+    const badgeDiv = document.createElement("div");
+    badgeDiv.style.cssText="display:grid;grid-template-columns:repeat(7,1fr);padding:2px 0 6px;";
+    week.forEach((cell, di) => {
+      const cell_div = document.createElement("div");
+      cell_div.style.cssText="padding:0 2px;min-height:4px;";
+      if(cell.cur){
+        const cellStr=`${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(cell.d).padStart(2,'0')}`;
+        data.forEach(item=>{
+          const deadlines = getDeadlines(item);
+          deadlines.forEach(dl=>{
+            if(dl.date===cellStr){
+              const badge=document.createElement("div");
+              badge.className=`deadline-badge ${dl.type}${dl.done?" done":""}`;
+              badge.textContent=dl.label;
+              cell_div.appendChild(badge);
+            }
+          });
+        });
+      }
+      badgeDiv.appendChild(cell_div);
+    });
+    weekDiv.appendChild(badgeDiv);
     body.appendChild(weekDiv);
   });
 
@@ -539,10 +571,51 @@ document.getElementById("calToday").addEventListener("click",()=>{
   calYear=new Date().getFullYear();calMonth=new Date().getMonth();renderCalendar();
 });
 
+function addBusinessDays(dateStr, days){
+  const d = new Date(dateStr+"T00:00:00");
+  let count = 0;
+  while(count < days){
+    d.setDate(d.getDate()+1);
+    const dow = d.getDay();
+    if(dow !== 0 && dow !== 6) count++;
+  }
+  return d.toISOString().slice(0,10);
+}
+
+function getDeadlines(item){
+  const key = statusKey(item);
+  const st = statusData[key] || {};
+  const deadlines = [];
+  // 速報値（手動設定日）
+  if(st.sokuchoDate){
+    deadlines.push({type:"sokcho", label:"📊 速報値", date:st.sokuchoDate, done:!!st.sokuhochi});
+  }
+  // レポート（配信終了+7日）
+  if(item.end){
+    const reportDate = new Date(item.end+"T00:00:00");
+    reportDate.setDate(reportDate.getDate()+7);
+    deadlines.push({type:"report", label:"📄 レポート", date:reportDate.toISOString().slice(0,10), done:!!st.report});
+  }
+  // 請求書（配信終了+3営業日）
+  if(item.end){
+    deadlines.push({type:"seikyusho", label:"🧾 請求書", date:addBusinessDays(item.end,3), done:!!st.seikyusho});
+  }
+  return deadlines;
+}
+
+function setSokuchoDate(key, date){
+  fetch(`${GAS_URL}?action=setSokuchoDate&key=${encodeURIComponent(key)}&date=${encodeURIComponent(date)}`)
+    .then(r=>r.json())
+    .catch(()=>{});
+}
+
 function loadStatus(){
   fetch(GAS_URL+"?action=getStatus")
     .then(r=>r.json())
-    .then(d=>{statusData=d;})
+    .then(d=>{
+      statusData=d;
+      if(currentView==="cal") renderCalendar();
+    })
     .catch(()=>{});
 }
 
@@ -593,8 +666,32 @@ function openDatePopup(dateStr,dayLabel){
       const [bg]=mediaColor(item.media);
 
       const mediaDiv=document.createElement("div");
-      mediaDiv.style.cssText="margin-bottom:8px;";
+      mediaDiv.style.cssText="margin-bottom:12px;";
       mediaDiv.innerHTML=`<span class="badge ${mediaBadgeClass(item.media)}" style="margin-bottom:6px;display:inline-block;">${item.media}</span>`;
+
+      // 速報値日付ピッカー
+      const key=statusKey(item);
+      const st=statusData[key]||{};
+      const pickerDiv=document.createElement("div");
+      pickerDiv.className="sokcho-date-row";
+      pickerDiv.innerHTML=`
+        <label>📊 速報値期限</label>
+        <input type="date" id="sokcho-${key.replace(/[^a-zA-Z0-9]/g,'_')}" value="${st.sokuchoDate||''}">
+        <button data-key="${key}">設定</button>
+      `;
+      pickerDiv.querySelector("button").addEventListener("click", e=>{
+        const k=e.target.dataset.key;
+        const inputId=`sokcho-${k.replace(/[^a-zA-Z0-9]/g,'_')}`;
+        const val=document.getElementById(inputId).value;
+        if(!val) return;
+        if(!statusData[k])statusData[k]={};
+        statusData[k].sokuchoDate=val;
+        setSokuchoDate(k, val);
+        renderCalendar();
+        e.target.textContent="✓";
+        setTimeout(()=>e.target.textContent="設定", 1500);
+      });
+      mediaDiv.appendChild(pickerDiv);
 
       const checks=document.createElement("div");
       checks.className="status-checks";
