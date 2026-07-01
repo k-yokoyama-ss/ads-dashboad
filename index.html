@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>広告案件ダッシュボード</title>
+<style>
+  :root{
+    --bg:#F6F5F1;
+    --card:#FFFFFF;
+    --line:#E4E2DA;
+    --ink:#1F1E1B;
+    --sub:#6B6960;
+    --faint:#A6A399;
+    --accent:#1F5F4F;
+    --accent-bg:#E4EFEB;
+    --warn:#B5651D;
+    --warn-bg:#F8EBDD;
+    --danger:#A23B2E;
+    --danger-bg:#F7E6E2;
+    --done-bg:#EFEEE9;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;
+    padding:32px 24px 80px;
+  }
+  .wrap{max-width:980px; margin:0 auto;}
+
+  header{
+    display:flex; justify-content:space-between; align-items:flex-end;
+    margin-bottom:24px; flex-wrap:wrap; gap:12px;
+  }
+  h1{font-size:22px; font-weight:700; margin:0;}
+  .updated{font-size:12px; color:var(--sub);}
+
+  .toolbar{display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px;}
+  .btn{
+    font-size:13px; padding:8px 16px; border-radius:8px;
+    border:1px solid var(--line); background:var(--card); color:var(--ink);
+    cursor:pointer; font-weight:700;
+  }
+  .btn:hover{background:var(--bg);}
+  .btn-primary{background:var(--ink); color:#fff; border-color:var(--ink);}
+  .btn-text{border:none; background:none; color:var(--sub); font-weight:400; padding:8px 4px;}
+
+  .summary{
+    display:grid; grid-template-columns:repeat(5,1fr); gap:12px;
+    margin-bottom:28px;
+  }
+  .stat{
+    background:var(--card); border:1px solid var(--line); border-radius:10px;
+    padding:14px 16px;
+  }
+  .stat .label{font-size:12px; color:var(--sub); margin:0 0 6px;}
+  .stat .value{font-size:22px; font-weight:700; margin:0;}
+
+  .filters{display:flex; gap:8px; margin-bottom:18px; flex-wrap:wrap;}
+  .filter-btn{
+    font-size:13px; padding:7px 14px; border-radius:999px;
+    border:1px solid var(--line); background:var(--card); color:var(--sub);
+    cursor:pointer;
+  }
+  .filter-btn.active{background:var(--ink); color:#fff; border-color:var(--ink);}
+
+  .list{display:flex; flex-direction:column; gap:10px;}
+
+  .campaign{
+    background:var(--card); border:1px solid var(--line); border-radius:12px;
+    padding:16px 18px 8px;
+  }
+  .campaign-head{
+    display:flex; justify-content:space-between; align-items:baseline;
+    border-bottom:1px solid var(--line); padding-bottom:10px; margin-bottom:8px;
+    flex-wrap:wrap; gap:6px;
+  }
+  .campaign-head .name{font-size:16px; font-weight:700; margin:0;}
+  .campaign-head .total{font-size:13px; color:var(--sub);}
+  .campaign-head .total b{color:var(--ink); font-size:14px;}
+
+  .row{
+    display:grid;
+    grid-template-columns:120px 220px 1fr 110px 32px 32px 28px;
+    align-items:center; gap:10px;
+    padding:10px 0;
+    border-bottom:1px solid var(--line);
+  }
+  .row:last-child{border-bottom:none;}
+  .row.done{opacity:.5;}
+
+  .badge{
+    font-size:11px; padding:3px 9px; border-radius:5px; background:var(--accent-bg);
+    color:var(--accent); font-weight:700; justify-self:start;
+  }
+  .badge-instagram{background:#F0997B; color:#4A1B0C;}
+  .badge-youtube{background:#E24B4A; color:#FCEBEB;}
+  .badge-x{background:#7F77DD; color:#EEEDFE;}
+  .badge-facebook{background:#378ADD; color:#E6F1FB;}
+  .badge-tiktok{background:#1D9E75; color:#E1F5EE;}
+  .badge-google{background:#EF9F27; color:#412402;}
+  .badge-other{background:#888780; color:#F1EFE8;}
+
+  .range{font-size:14px; font-weight:700; letter-spacing:.1px; white-space:nowrap;}
+  .range .arrow{color:var(--faint); margin:0 3px; font-weight:400;}
+
+  .days-left{font-size:12px; padding:2px 8px; border-radius:6px; justify-self:start;}
+
+  .row-budget{font-size:14px; font-weight:700; text-align:right;}
+
+  input[type=checkbox]{width:18px; height:18px; justify-self:center;}
+
+  .icon-btn{
+    border:none; background:none; cursor:pointer; color:var(--faint);
+    font-size:14px; padding:4px; justify-self:center;
+  }
+  .icon-btn:hover{color:var(--ink);}
+
+  .row.status-active .days-left{background:var(--accent-bg); color:var(--accent);}
+  .row.status-over .days-left{background:var(--danger-bg); color:var(--danger);}
+  .row.status-done .days-left{background:var(--done-bg); color:var(--sub);}
+
+  .empty{
+    text-align:center; color:var(--sub); font-size:13px; padding:40px 0;
+  }
+
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(0,0,0,0.4);
+    display:none; align-items:center; justify-content:center; padding:20px; z-index:10;
+  }
+  .modal-overlay.open{display:flex;}
+  .modal{
+    background:var(--card); border-radius:12px; padding:24px;
+    width:100%; max-width:420px;
+  }
+  .modal h2{font-size:16px; margin:0 0 18px;}
+  .field{margin-bottom:14px;}
+  .field label{display:block; font-size:12px; color:var(--sub); margin-bottom:5px;}
+  .field input, .field select{
+    width:100%; padding:9px 10px; border:1px solid var(--line); border-radius:8px;
+    font-size:14px; font-family:inherit; background:var(--bg);
+  }
+  .field-row{display:flex; gap:10px;}
+  .field-row .field{flex:1;}
+  .modal-actions{display:flex; justify-content:flex-end; gap:8px; margin-top:18px;}
+
+  @media (max-width:640px){
+    .row{grid-template-columns:1fr; gap:6px;}
+    .row-budget{text-align:left;}
+    .range{font-size:15px;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>広告案件ダッシュボード</h1>
+    <div class="updated" id="updatedAt"></div>
+  </header>
+
+  <div class="toolbar">
+    <button class="btn btn-primary" id="openAddBtn">+ 案件を追加</button>
+    <div style="display:flex; gap:8px;">
+      <button class="btn btn-text" id="refreshSheetBtn" style="display:none;">↻ スプレッドシートを更新</button>
+      <button class="btn btn-text" id="openCsvBtn">スプレッドシート連携の設定</button>
+      <button class="btn btn-text" id="clearAllBtn" style="color:var(--danger);">すべて削除</button>
+    </div>
+  </div>
+
+  <div class="summary">
+    <div class="stat"><p class="label">案件数</p><p class="value" id="statTotal">-</p></div>
+    <div class="stat"><p class="label">媒体費合計</p><p class="value" id="statBudget">-</p></div>
+    <div class="stat"><p class="label">請求額合計</p><p class="value" id="statBilling">-</p></div>
+    <div class="stat"><p class="label">配信中</p><p class="value" id="statActive">-</p></div>
+    <div class="stat"><p class="label">開始前</p><p class="value" id="statUpcoming">-</p></div>
+  </div>
+
+  <div class="filters">
+    <button class="filter-btn active" data-filter="all">すべて</button>
+    <button class="filter-btn" data-filter="active">配信中</button>
+    <button class="filter-btn" data-filter="done">配信完了</button>
+    <button class="filter-btn" data-filter="upcoming">開始前</button>
+  </div>
+
+  <div class="list" id="list"></div>
+  <div class="empty" id="emptyMsg" style="display:none;">案件がありません。「+ 案件を追加」から登録してください。</div>
+
+</div>
+
+<div class="modal-overlay" id="formOverlay">
+  <div class="modal">
+    <h2 id="formTitle">案件を追加</h2>
+    <input type="hidden" id="editId">
+    <div class="field">
+      <label>案件名</label>
+      <input type="text" id="fName" placeholder="例: ラ・ボエーム予告">
+    </div>
+    <div class="field">
+      <label>媒体</label>
+      <select id="fMedia">
+        <option>Instagram</option>
+        <option>YouTube</option>
+        <option>X(Twitter)</option>
+        <option>Facebook</option>
+        <option>TikTok</option>
+        <option>Google広告</option>
+        <option>その他</option>
+      </select>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>請求額(円)</label>
+        <input type="number" id="fGross" placeholder="例: 180000">
+      </div>
+      <div class="field">
+        <label>手数料率(%)</label>
+        <input type="number" id="fFeeRate" value="25" step="0.1">
+      </div>
+    </div>
+    <div class="field">
+      <label>媒体費(円)<span style="color:var(--sub); font-weight:400;"> ー 請求額と手数料率から自動計算、直接編集も可</span></label>
+      <input type="number" id="fBudget" placeholder="例: 135000">
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>配信開始日</label>
+        <input type="date" id="fStart">
+      </div>
+      <div class="field">
+        <label>配信終了日</label>
+        <input type="date" id="fEnd">
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>開始時間(任意)</label>
+        <input type="time" id="fStartTime">
+      </div>
+      <div class="field">
+        <label>終了時間(任意)</label>
+        <input type="time" id="fEndTime">
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" id="cancelFormBtn">キャンセル</button>
+      <button class="btn btn-primary" id="saveFormBtn">保存</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="csvOverlay">
+  <div class="modal">
+    <h2>スプレッドシート連携の設定</h2>
+    <div class="field">
+      <label>公開済みCSVリンク(ファイル&gt;共有&gt;ウェブに公開)</label>
+      <input type="text" id="csvUrlInput" placeholder="https://docs.google.com/.../pub?output=csv">
+    </div>
+    <p style="font-size:12px; color:var(--sub); margin:0 0 4px;">列の並びは「案件名, 媒体, グロス予算, 手数料率, net予算, 開始日, 終了日, 開始時間, 終了時間」を想定しています。保存すると、ファイルを開くたびに自動でこのリンクから読み込みます。</p>
+    <div class="modal-actions">
+      <button class="btn" id="clearCsvUrlBtn" style="color:var(--danger); margin-right:auto;">連携を解除</button>
+      <button class="btn" id="cancelCsvBtn">キャンセル</button>
+      <button class="btn btn-primary" id="loadCsvBtn">保存して読み込む</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY = "ad_dashboard_campaigns_v1";
+
+const SAMPLE_DATA = [
+  {id:"s1", name:"ラ・ボエーム予告", media:"Instagram", budget:250000, start:"2025-12-05", end:"2025-12-18", done:false},
+  {id:"s2", name:"ラ・ボエーム予告", media:"YouTube", budget:200000, start:"2025-12-05", end:"2025-12-18", done:false},
+  {id:"s3", name:"シーズン予告", media:"Instagram", budget:500000, start:"2025-11-14", end:"2025-12-18", done:false},
+  {id:"s4", name:"シーズン予告", media:"YouTube", budget:800000, start:"2025-11-14", end:"2025-12-18", done:false},
+  {id:"s5", name:"アンドレア・シェニエ予告", media:"Instagram", budget:150000, start:"2026-02-27", end:"2026-03-12", done:false},
+  {id:"s6", name:"アンドレア・シェニエ予告", media:"YouTube", budget:150000, start:"2026-02-27", end:"2026-03-12", done:false},
+  {id:"s7", name:"トリスタンとイゾルデ予告", media:"Instagram", budget:200000, start:"2026-04-17", end:"2026-04-30", done:false},
+  {id:"s8", name:"トリスタンとイゾルデ予告", media:"YouTube", budget:200000, start:"2026-04-17", end:"2026-04-30", done:false},
+  {id:"s9", name:"エフゲニー・オネーギン予告", media:"Instagram", budget:200000, start:"2026-06-05", end:"2026-06-18", done:false}
+];
+
+let data = [];
+let currentFilter = "all";
+
+function loadData(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw){
+      data = JSON.parse(raw);
+    } else {
+      data = SAMPLE_DATA.slice();
+      saveData();
+    }
+  }catch(e){
+    data = SAMPLE_DATA.slice();
+  }
+}
+
+function saveData(){
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  }catch(e){
+    console.error("保存に失敗しました", e);
+  }
+}
+
+const WEEKDAYS = ["日","月","火","水","木","金","土"];
+
+function fmtDate(d, time){
+  const dt = new Date(d);
+  const base = (dt.getMonth()+1) + "/" + dt.getDate() + "(" + WEEKDAYS[dt.getDay()] + ")";
+  return time ? base + " " + time : base;
+}
+
+function statusOf(item, today){
+  const start = new Date(item.start);
+  const end = new Date(item.end);
+  end.setHours(23,59,59,999);
+  if (today > end) return "done";
+  if (today < start) return "upcoming";
+  return "active";
+}
+
+function statusLabel(status, item, today){
+  if (status === "done") return "配信完了";
+  if (status === "upcoming"){
+    const d = Math.ceil((new Date(item.start) - today) / 86400000);
+    return `配信開始まであと${d}日`;
+  }
+  const end = new Date(item.end); end.setHours(23,59,59,999);
+  const d = Math.ceil((end - today) / 86400000);
+  return d <= 0 ? "本日まで" : `残り${d}日`;
+}
+
+function mediaBadgeClass(media){
+  const map = {
+    "Instagram":"badge-instagram",
+    "YouTube":"badge-youtube",
+    "X(Twitter)":"badge-x",
+    "Facebook":"badge-facebook",
+    "TikTok":"badge-tiktok",
+    "Google広告":"badge-google"
+  };
+  return map[media] || "badge-other";
+}
+
+function groupByCampaign(list){
+  const groups = {};
+  list.forEach(item => {
+    if (!groups[item.name]) groups[item.name] = [];
+    groups[item.name].push(item);
+  });
+  return groups;
+}
+
+function render(){
+  const today = new Date();
+  today.setHours(0,0,0,0);
+
+  const list = document.getElementById("list");
+  list.innerHTML = "";
+
+  let totalRows = 0, budgetSum = 0, billingSum = 0, activeCount = 0, upcomingCount = 0;
+
+  data.forEach(item => {
+    const status = statusOf(item, today);
+    if (status === "active") activeCount++;
+    if (status === "upcoming") upcomingCount++;
+    budgetSum += item.budget;
+    billingSum += (item.gross || item.budget);
+    totalRows++;
+  });
+
+  document.getElementById("statTotal").textContent = totalRows + "件";
+  document.getElementById("statBudget").textContent = "¥" + budgetSum.toLocaleString();
+  document.getElementById("statBilling").textContent = "¥" + billingSum.toLocaleString();
+  document.getElementById("statActive").textContent = activeCount + "件";
+  document.getElementById("statUpcoming").textContent = upcomingCount + "件";
+
+  const groups = groupByCampaign(data);
+  let visibleGroupCount = 0;
+
+  Object.keys(groups).forEach(name => {
+    const rows = groups[name].map(item => {
+      const status = statusOf(item, today);
+      return {item, status};
+    });
+
+    const filteredRows = rows.filter(r => currentFilter === "all" || r.status === currentFilter);
+    if (!filteredRows.length) return;
+    visibleGroupCount++;
+
+    const campaignTotal = groups[name].reduce((s,i) => s + (i.gross || i.budget), 0);
+    const earliestStart = groups[name].reduce((min,i) => new Date(i.start) < new Date(min) ? i.start : min, groups[name][0].start);
+    const latestEnd = groups[name].reduce((max,i) => new Date(i.end) > new Date(max) ? i.end : max, groups[name][0].end);
+
+    const card = document.createElement("div");
+    card.className = "campaign";
+    card.innerHTML = `
+      <div class="campaign-head">
+        <p class="name">${name}</p>
+        <div class="total">全体期間 ${fmtDate(earliestStart)} 〜 ${fmtDate(latestEnd)} ・ 合計 <b>¥${campaignTotal.toLocaleString()}</b></div>
+      </div>
+    `;
+
+    filteredRows
+      .sort((a,b) => new Date(a.item.end) - new Date(b.item.end))
+      .forEach(({item, status}) => {
+        const row = document.createElement("div");
+        row.className = "row status-" + status + (item.done ? " done" : "");
+        row.innerHTML = `
+          <span class="badge ${mediaBadgeClass(item.media)}">${item.media}</span>
+          <div class="range">${fmtDate(item.start, item.startTime)}<span class="arrow">→</span>${fmtDate(item.end, item.endTime)}</div>
+          <div class="days-left">${statusLabel(status, item, today)}</div>
+          <div class="row-budget">¥${(item.gross || item.budget).toLocaleString()}<div style="font-size:11px; color:var(--sub); font-weight:400;">媒体費 ¥${item.budget.toLocaleString()}${item.gross ? ` ・ 手数料 ¥${(item.gross - item.budget).toLocaleString()}` : ""}</div></div>
+          <button class="icon-btn" data-action="edit" data-id="${item.id}" title="編集">✎</button>
+          <button class="icon-btn" data-action="delete" data-id="${item.id}" title="削除">✕</button>
+          <input type="checkbox" ${item.done ? "checked" : ""} data-id="${item.id}" title="完了">
+        `;
+        card.appendChild(row);
+      });
+
+    list.appendChild(card);
+  });
+
+  document.getElementById("emptyMsg").style.display = visibleGroupCount ? "none" : "block";
+
+  list.querySelectorAll("input[type=checkbox]").forEach(cb => {
+    cb.addEventListener("change", e => {
+      const item = data.find(d => d.id === e.target.dataset.id);
+      if (item){ item.done = e.target.checked; saveData(); render(); }
+    });
+  });
+
+  list.querySelectorAll('[data-action="edit"]').forEach(btn => {
+    btn.addEventListener("click", () => openEditForm(btn.dataset.id));
+  });
+  list.querySelectorAll('[data-action="delete"]').forEach(btn => {
+    btn.addEventListener("click", () => {
+      if (confirm("この案件を削除しますか？")){
+        data = data.filter(d => d.id !== btn.dataset.id);
+        saveData();
+        render();
+      }
+    });
+  });
+}
+
+function setUpdatedAt(){
+  const now = new Date();
+  document.getElementById("updatedAt").textContent =
+    "最終更新: " + now.toLocaleString("ja-JP", {month:"numeric", day:"numeric", hour:"2-digit", minute:"2-digit"});
+}
+
+const SHEET_URL_KEY = "ad_dashboard_sheet_url_v1";
+
+function stableId(name, media, start){
+  let str = name + "|" + media + "|" + start;
+  let hash = 0;
+  for (let i = 0; i < str.length; i++){
+    hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0;
+  }
+  return "sheet-" + Math.abs(hash);
+}
+
+function parseCSV(text){
+  const lines = text.trim().split("\n").map(l => l.split(",").map(c => c.trim().replace(/^"|"$/g,"")));
+  const rows = lines.slice(1);
+  return rows.filter(r => r.length >= 7 && r[0]).map(r => {
+    const name = r[0], media = r[1];
+    const gross = Number(String(r[2]).replace(/[^0-9.-]/g,"")) || 0;
+    const feeRate = Number(String(r[3]).replace(/[^0-9.-]/g,"")) || 0;
+    const budget = Number(String(r[4]).replace(/[^0-9.-]/g,"")) || 0;
+    const start = r[5], end = r[6];
+    const startTime = r[7] || "", endTime = r[8] || "";
+    return {
+      id: stableId(name, media, start),
+      name, media, gross, feeRate, budget, start, end, startTime, endTime,
+      done:false, fromSheet:true
+    };
+  });
+}
+
+function mergeSheetData(imported){
+  const localOnly = data.filter(d => !d.fromSheet);
+  const prevDoneMap = {};
+  data.forEach(d => { if (d.fromSheet) prevDoneMap[d.id] = d.done; });
+  const merged = imported.map(item => ({...item, done: !!prevDoneMap[item.id]}));
+  data = localOnly.concat(merged);
+}
+
+function syncFromSheet(showAlertOnError){
+  const url = localStorage.getItem(SHEET_URL_KEY);
+  if (!url) return;
+  fetch(url)
+    .then(res => res.text())
+    .then(text => {
+      mergeSheetData(parseCSV(text));
+      saveData();
+      render();
+      setUpdatedAt();
+    })
+    .catch(() => {
+      if (showAlertOnError) alert("読み込みに失敗しました。リンクが正しく公開されているか確認してください。");
+    });
+}
+
+document.querySelectorAll(".filter-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".filter-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    currentFilter = btn.dataset.filter;
+    render();
+  });
+});
+
+const formOverlay = document.getElementById("formOverlay");
+const csvOverlay = document.getElementById("csvOverlay");
+
+function openAddForm(){
+  document.getElementById("formTitle").textContent = "案件を追加";
+  document.getElementById("editId").value = "";
+  document.getElementById("fName").value = "";
+  document.getElementById("fMedia").value = "Instagram";
+  document.getElementById("fGross").value = "";
+  document.getElementById("fFeeRate").value = "25";
+  document.getElementById("fBudget").value = "";
+  document.getElementById("fStart").value = "";
+  document.getElementById("fEnd").value = "";
+  document.getElementById("fStartTime").value = "";
+  document.getElementById("fEndTime").value = "";
+  formOverlay.classList.add("open");
+}
+
+function openEditForm(id){
+  const item = data.find(d => d.id === id);
+  if (!item) return;
+  document.getElementById("formTitle").textContent = "案件を編集";
+  document.getElementById("editId").value = item.id;
+  document.getElementById("fName").value = item.name;
+  document.getElementById("fMedia").value = item.media;
+  document.getElementById("fGross").value = item.gross || "";
+  document.getElementById("fFeeRate").value = (item.feeRate != null) ? item.feeRate : 25;
+  document.getElementById("fBudget").value = item.budget;
+  document.getElementById("fStart").value = item.start;
+  document.getElementById("fEnd").value = item.end;
+  document.getElementById("fStartTime").value = item.startTime || "";
+  document.getElementById("fEndTime").value = item.endTime || "";
+  formOverlay.classList.add("open");
+}
+
+document.getElementById("openAddBtn").addEventListener("click", openAddForm);
+document.getElementById("cancelFormBtn").addEventListener("click", () => formOverlay.classList.remove("open"));
+
+function recalcNet(){
+  const gross = Number(document.getElementById("fGross").value);
+  const rate = Number(document.getElementById("fFeeRate").value);
+  if (gross > 0 && !isNaN(rate)){
+    const net = Math.round(gross * (1 - rate/100));
+    document.getElementById("fBudget").value = net;
+  }
+}
+document.getElementById("fGross").addEventListener("input", recalcNet);
+document.getElementById("fFeeRate").addEventListener("input", recalcNet);
+
+document.getElementById("saveFormBtn").addEventListener("click", () => {
+  const name = document.getElementById("fName").value.trim();
+  const media = document.getElementById("fMedia").value;
+  const gross = Number(document.getElementById("fGross").value) || 0;
+  const feeRate = Number(document.getElementById("fFeeRate").value) || 0;
+  const budget = Number(document.getElementById("fBudget").value) || 0;
+  const start = document.getElementById("fStart").value;
+  const end = document.getElementById("fEnd").value;
+  const startTime = document.getElementById("fStartTime").value;
+  const endTime = document.getElementById("fEndTime").value;
+  const editId = document.getElementById("editId").value;
+
+  if (!name || !start || !end){
+    alert("案件名・開始日・終了日は必須です。");
+    return;
+  }
+  if (new Date(end) < new Date(start)){
+    alert("終了日は開始日より後の日付にしてください。");
+    return;
+  }
+
+  if (editId){
+    const item = data.find(d => d.id === editId);
+    Object.assign(item, {name, media, gross, feeRate, budget, start, end, startTime, endTime});
+  } else {
+    data.push({id:"c-"+Date.now()+"-"+Math.random().toString(36).slice(2,7), name, media, gross, feeRate, budget, start, end, startTime, endTime, done:false});
+  }
+  saveData();
+  formOverlay.classList.remove("open");
+  render();
+});
+
+document.getElementById("openCsvBtn").addEventListener("click", () => {
+  document.getElementById("csvUrlInput").value = localStorage.getItem(SHEET_URL_KEY) || "";
+  csvOverlay.classList.add("open");
+});
+document.getElementById("clearAllBtn").addEventListener("click", () => {
+  if (confirm("すべての案件を削除します。よろしいですか？")){
+    data = [];
+    saveData();
+    render();
+  }
+});
+document.getElementById("cancelCsvBtn").addEventListener("click", () => csvOverlay.classList.remove("open"));
+document.getElementById("loadCsvBtn").addEventListener("click", () => {
+  const url = document.getElementById("csvUrlInput").value.trim();
+  if (!url){ csvOverlay.classList.remove("open"); return; }
+  localStorage.setItem(SHEET_URL_KEY, url);
+  document.getElementById("refreshSheetBtn").style.display = "inline-block";
+  csvOverlay.classList.remove("open");
+  syncFromSheet(true);
+});
+document.getElementById("clearCsvUrlBtn").addEventListener("click", () => {
+  localStorage.removeItem(SHEET_URL_KEY);
+  document.getElementById("refreshSheetBtn").style.display = "none";
+  csvOverlay.classList.remove("open");
+});
+document.getElementById("refreshSheetBtn").addEventListener("click", () => syncFromSheet(true));
+
+[formOverlay, csvOverlay].forEach(ov => {
+  ov.addEventListener("click", e => { if (e.target === ov) ov.classList.remove("open"); });
+});
+
+setUpdatedAt();
+loadData();
+render();
+if (localStorage.getItem(SHEET_URL_KEY)){
+  document.getElementById("refreshSheetBtn").style.display = "inline-block";
+  syncFromSheet(false);
+}
+</script>
+</body>
+</html>
