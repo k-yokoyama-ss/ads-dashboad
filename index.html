@@ -157,15 +157,34 @@
 
 <script>
 (function(){
-  const PASSWORD = "nagoya";
+  // パスワードを変更する場合は以下のハッシュ値を更新してください
+  // ハッシュ値の生成方法: https://emn178.github.io/online-tools/sha256.html でパスワードを入力
+  const PASSWORD_HASH = "2a95e2ef9e4d24f0b8925c98881c05cd71927bb8ca794d1a5857ee33ed79ffc0";
   const KEY = "ad_dashboard_auth_v1";
+
+  async function hashPassword(pw){
+    const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(pw));
+    return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("");
+  }
+
   if(sessionStorage.getItem(KEY)==="ok") document.getElementById("pw-screen").classList.add("hidden");
-  window.checkPassword=function(){
-    const val=document.getElementById("pw-input").value;
-    if(val===PASSWORD){sessionStorage.setItem(KEY,"ok");document.getElementById("pw-screen").classList.add("hidden");}
-    else{document.getElementById("pw-error").style.display="block";document.getElementById("pw-input").value="";document.getElementById("pw-input").focus();}
+
+  window.checkPassword = async function(){
+    const val = document.getElementById("pw-input").value;
+    const hashed = await hashPassword(val);
+    if(hashed === PASSWORD_HASH){
+      sessionStorage.setItem(KEY,"ok");
+      document.getElementById("pw-screen").classList.add("hidden");
+    } else {
+      document.getElementById("pw-error").style.display="block";
+      document.getElementById("pw-input").value="";
+      document.getElementById("pw-input").focus();
+    }
   };
-  document.getElementById("pw-input").addEventListener("keydown",function(e){if(e.key==="Enter")window.checkPassword();});
+
+  document.getElementById("pw-input").addEventListener("keydown", function(e){
+    if(e.key==="Enter") window.checkPassword();
+  });
 })();
 </script>
 
