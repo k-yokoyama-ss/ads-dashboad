@@ -79,12 +79,23 @@
   .cal-day-num.sat{color:var(--accent);}
   .cal-day-num.other{color:var(--faint);}
   .cal-bars{display:grid;grid-template-columns:repeat(7,1fr);padding:4px 0 12px;gap:3px 0;}
-  .cal-bar{height:26px;display:flex;align-items:center;padding:0 8px;font-size:11px;font-weight:700;white-space:nowrap;overflow:visible;}
-  .cal-bar.bar-start{border-radius:6px 0 0 6px;margin-left:4px;}
+  .cal-bar{height:26px;display:flex;align-items:center;padding:0 8px;font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;}
+  .cal-bar.bar-start{border-radius:6px 0 0 6px;margin-left:4px;cursor:pointer;}
   .cal-bar.bar-end{border-radius:0 6px 6px 0;margin-right:4px;}
-  .cal-bar.bar-single{border-radius:6px;margin:0 4px;}
+  .cal-bar.bar-single{border-radius:6px;margin:0 4px;cursor:pointer;}
   .cal-bar.bar-mid{border-radius:0;}
   .cal-bar.bar-empty{background:transparent!important;}
+
+  .cal-popup-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.3);display:none;align-items:center;justify-content:center;z-index:100;}
+  .cal-popup-overlay.open{display:flex;}
+  .cal-popup{background:var(--card);border-radius:14px;padding:24px;width:100%;max-width:360px;box-shadow:0 8px 32px rgba(0,0,0,0.12);}
+  .cal-popup-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;}
+  .cal-popup-name{font-size:16px;font-weight:700;margin:0;flex:1;}
+  .cal-popup-close{border:none;background:none;font-size:20px;color:var(--faint);cursor:pointer;padding:0 0 0 12px;line-height:1;}
+  .cal-popup-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--line);font-size:13px;}
+  .cal-popup-row:last-child{border-bottom:none;}
+  .cal-popup-label{color:var(--sub);}
+  .cal-popup-value{font-weight:700;text-align:right;}
   .cal-legend{display:flex;gap:16px;padding:12px 16px;flex-wrap:wrap;align-items:center;border-top:1px solid var(--line);background:var(--bg);}
   .cal-legend-item{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--sub);}
   .cal-legend-dot{width:12px;height:12px;border-radius:3px;}
@@ -185,6 +196,20 @@
       <div id="calBody"></div>
       <div class="cal-legend" id="calLegend"></div>
     </div>
+  </div>
+</div>
+
+<div class="cal-popup-overlay" id="calPopupOverlay">
+  <div class="cal-popup">
+    <div class="cal-popup-header">
+      <p class="cal-popup-name" id="calPopupName"></p>
+      <button class="cal-popup-close" id="calPopupClose">✕</button>
+    </div>
+    <div class="cal-popup-row"><span class="cal-popup-label">媒体</span><span class="cal-popup-value" id="calPopupMedia"></span></div>
+    <div class="cal-popup-row"><span class="cal-popup-label">配信期間</span><span class="cal-popup-value" id="calPopupPeriod"></span></div>
+    <div class="cal-popup-row"><span class="cal-popup-label">請求額</span><span class="cal-popup-value" id="calPopupBilling"></span></div>
+    <div class="cal-popup-row"><span class="cal-popup-label">媒体費</span><span class="cal-popup-value" id="calPopupBudget"></span></div>
+    <div class="cal-popup-row"><span class="cal-popup-label">手数料</span><span class="cal-popup-value" id="calPopupFee"></span></div>
   </div>
 </div>
 
@@ -398,7 +423,10 @@ function renderCalendar(){
           wrapper.style.background=bgColor;
           wrapper.style.color=textColor;
           if(isStart||isWeekStart){
-            wrapper.textContent=`${item.name}（${item.media}）`;
+            wrapper.textContent=item.name;
+          }
+          if(isStart||isWeekStart){
+            wrapper.addEventListener("click",()=>openCalPopup(item));
           }
         } else {
           wrapper.className="cal-bar bar-empty";
@@ -452,6 +480,18 @@ document.getElementById("calNext").addEventListener("click",()=>{
 document.getElementById("calToday").addEventListener("click",()=>{
   calYear=new Date().getFullYear();calMonth=new Date().getMonth();renderCalendar();
 });
+
+function openCalPopup(item){
+  document.getElementById("calPopupName").textContent=item.name;
+  document.getElementById("calPopupMedia").textContent=item.media;
+  document.getElementById("calPopupPeriod").textContent=fmtDate(item.start,item.startTime)+" → "+fmtDate(item.end,item.endTime);
+  document.getElementById("calPopupBilling").textContent="¥"+(item.gross||item.budget||0).toLocaleString();
+  document.getElementById("calPopupBudget").textContent="¥"+(item.budget||0).toLocaleString();
+  document.getElementById("calPopupFee").textContent=item.gross?"¥"+(item.gross-item.budget).toLocaleString():"-";
+  document.getElementById("calPopupOverlay").classList.add("open");
+}
+document.getElementById("calPopupClose").addEventListener("click",()=>document.getElementById("calPopupOverlay").classList.remove("open"));
+document.getElementById("calPopupOverlay").addEventListener("click",e=>{if(e.target===document.getElementById("calPopupOverlay"))document.getElementById("calPopupOverlay").classList.remove("open");});
 
 const csvOverlay=document.getElementById("csvOverlay");
 document.getElementById("openCsvBtn").addEventListener("click",()=>{
