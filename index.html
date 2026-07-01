@@ -517,7 +517,7 @@ function renderCalendar(){
             if(dl.date===cellStr){
               const badge=document.createElement("div");
               badge.className=`deadline-badge ${dl.type}${dl.done?" done":""}`;
-              badge.textContent=dl.label;
+              badge.textContent=`${item.name} ${dl.label}`;
               cell_div.appendChild(badge);
             }
           });
@@ -587,27 +587,20 @@ function getDeadlines(item){
   const key = statusKey(item);
   const st = statusData[key] || {};
   const deadlines = [];
-  // 速報値（手動設定日）
-  if(st.sokuchoDate){
-    deadlines.push({type:"sokcho", label:"📊 速報値", date:st.sokuchoDate, done:!!st.sokuhochi});
-  }
-  // レポート（配信終了+7日）
   if(item.end){
-    const reportDate = new Date(item.end+"T00:00:00");
-    reportDate.setDate(reportDate.getDate()+7);
-    deadlines.push({type:"report", label:"📄 レポート", date:reportDate.toISOString().slice(0,10), done:!!st.report});
-  }
-  // 請求書（配信終了+3営業日）
-  if(item.end){
-    deadlines.push({type:"seikyusho", label:"🧾 請求書", date:addBusinessDays(item.end,3), done:!!st.seikyusho});
+    const autoReport = new Date(item.end+"T00:00:00");
+    autoReport.setDate(autoReport.getDate()+7);
+    const autoSeikyu = addBusinessDays(item.end,3);
+    deadlines.push({type:"sokcho",    label:"速報値",    field:"sokuchoDate",    date:st.sokuchoDate||"",              done:!!st.sokuhochi, key});
+    deadlines.push({type:"report",    label:"レポート",  field:"reportDate",     date:st.reportDate||autoReport.toISOString().slice(0,10), done:!!st.report,    key});
+    deadlines.push({type:"seikyusho", label:"請求書提出",field:"seikyushoDate",  date:st.seikyushoDate||autoSeikyu,    done:!!st.seikyusho, key});
   }
   return deadlines;
 }
 
-function setSokuchoDate(key, date){
-  fetch(`${GAS_URL}?action=setSokuchoDate&key=${encodeURIComponent(key)}&date=${encodeURIComponent(date)}`)
-    .then(r=>r.json())
-    .catch(()=>{});
+function saveDate(key, field, date){
+  fetch(`${GAS_URL}?action=setDate&key=${encodeURIComponent(key)}&field=${encodeURIComponent(field)}&date=${encodeURIComponent(date)}`)
+    .then(r=>r.json()).catch(()=>{});
 }
 
 function loadStatus(){
@@ -670,27 +663,34 @@ function openDatePopup(dateStr,dayLabel){
       mediaDiv.style.cssText="margin-bottom:12px;";
       mediaDiv.innerHTML=`<span class="badge ${mediaBadgeClass(item.media)}" style="margin-bottom:6px;display:inline-block;">${item.media}</span>`;
 
-      // 速報値日付ピッカー
-      const pickerDiv=document.createElement("div");
-      pickerDiv.className="sokcho-date-row";
-      pickerDiv.innerHTML=`
-        <label>📊 速報値期限</label>
-        <input type="date" id="sokcho-${key.replace(/[^a-zA-Z0-9]/g,'_')}" value="${st.sokuchoDate||''}">
-        <button data-key="${key}">設定</button>
-      `;
-      pickerDiv.querySelector("button").addEventListener("click", e=>{
-        const k=e.target.dataset.key;
-        const inputId=`sokcho-${k.replace(/[^a-zA-Z0-9]/g,'_')}`;
-        const val=document.getElementById(inputId).value;
-        if(!val) return;
-        if(!statusData[k])statusData[k]={};
-        statusData[k].sokuchoDate=val;
-        setSokuchoDate(k, val);
-        renderCalendar();
-        e.target.textContent="✓";
-        setTimeout(()=>e.target.textContent="設定", 1500);
+      // 日付ピッカー（速報値・レポート・請求書）
+      const deadlines = getDeadlines(item);
+      const pickerWrap = document.createElement("div");
+      pickerWrap.style.cssText="margin-bottom:8px;";
+      deadlines.forEach(dl=>{
+        const pickerDiv=document.createElement("div");
+        pickerDiv.className="sokcho-date-row";
+        const inputId=`date-${dl.field}-${key.replace(/[^a-zA-Z0-9]/g,'_')}`;
+        pickerDiv.innerHTML=`
+          <label>${dl.type==="sokcho"?"📊 速報値":dl.type==="report"?"📄 レポート":"🧾 請求書"}</label>
+          <input type="date" id="${inputId}" value="${dl.date||''}">
+          <button data-key="${key}" data-field="${dl.field}">設定</button>
+        `;
+        pickerDiv.querySelector("button").addEventListener("click", e=>{
+          const k=e.target.dataset.key;
+          const f=e.target.dataset.field;
+          const val=document.getElementById(`date-${f}-${k.replace(/[^a-zA-Z0-9]/g,'_')}`).value;
+          if(!val) return;
+          if(!statusData[k])statusData[k]={};
+          statusData[k][f]=val;
+          saveDate(k, f, val);
+          renderCalendar();
+          e.target.textContent="✓";
+          setTimeout(()=>e.target.textContent="設定", 1500);
+        });
+        pickerWrap.appendChild(pickerDiv);
       });
-      mediaDiv.appendChild(pickerDiv);
+      mediaDiv.appendChild(pickerWrap);
 
       const checks=document.createElement("div");
       checks.className="status-checks";
