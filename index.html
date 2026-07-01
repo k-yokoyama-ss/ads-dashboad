@@ -671,8 +671,6 @@ function openDatePopup(dateStr,dayLabel){
       mediaDiv.innerHTML=`<span class="badge ${mediaBadgeClass(item.media)}" style="margin-bottom:6px;display:inline-block;">${item.media}</span>`;
 
       // 速報値日付ピッカー
-      const key=statusKey(item);
-      const st=statusData[key]||{};
       const pickerDiv=document.createElement("div");
       pickerDiv.className="sokcho-date-row";
       pickerDiv.innerHTML=`
