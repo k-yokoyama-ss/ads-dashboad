@@ -106,7 +106,23 @@
   .cal-legend-item{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--sub);}
   .cal-legend-dot{width:12px;height:12px;border-radius:3px;}
 
-  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.4);display:none;align-items:center;justify-content:center;padding:20px;z-index:10;}
+  .date-popup-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.3);display:none;align-items:center;justify-content:center;z-index:200;}
+  .date-popup-overlay.open{display:flex;}
+  .date-popup{background:var(--card);border-radius:14px;padding:24px;width:100%;max-width:420px;max-height:80vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.12);}
+  .date-popup-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;border-bottom:1px solid var(--line);padding-bottom:12px;}
+  .date-popup-title{font-size:15px;font-weight:700;margin:0;}
+  .date-popup-close{border:none;background:none;font-size:20px;color:var(--faint);cursor:pointer;padding:0;}
+  .date-popup-empty{font-size:13px;color:var(--sub);padding:12px 0;}
+  .status-campaign{margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--line);}
+  .status-campaign:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0;}
+  .status-campaign-name{font-size:14px;font-weight:700;margin-bottom:8px;display:flex;align-items:center;gap:8px;}
+  .status-checks{display:flex;flex-direction:column;gap:6px;}
+  .status-check{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;background:var(--bg);cursor:pointer;}
+  .status-check:hover{background:var(--accent-bg);}
+  .status-check input{width:16px;height:16px;accent-color:var(--accent);cursor:pointer;}
+  .status-check label{font-size:13px;cursor:pointer;flex:1;}
+  .status-check.checked{background:var(--accent-bg);}
+  .status-check.checked label{color:var(--accent);font-weight:700;}
   .modal-overlay.open{display:flex;}
   .modal{background:var(--card);border-radius:12px;padding:24px;width:100%;max-width:420px;}
   .modal h2{font-size:16px;margin:0 0 18px;}
@@ -205,6 +221,16 @@
   </div>
 </div>
 
+<div class="date-popup-overlay" id="datePopupOverlay">
+  <div class="date-popup">
+    <div class="date-popup-header">
+      <p class="date-popup-title" id="datePopupTitle"></p>
+      <button class="date-popup-close" id="datePopupClose">✕</button>
+    </div>
+    <div id="datePopupContent"></div>
+  </div>
+</div>
+
 <div class="cal-popup-overlay" id="calPopupOverlay">
   <div class="cal-popup">
     <div class="cal-popup-header">
@@ -236,6 +262,8 @@
 </div>
 
 <script>
+const GAS_URL="https://script.google.com/macros/s/AKfycbzJYgNThd8aoeTvduDpmCo840ySZnt_m4n5JFeWpk8LR3u4uCTU93jzz6g_HOzpqT_ywg/exec";
+let statusData={};
 const STORAGE_KEY="ad_dashboard_campaigns_v1";
 const SHEET_URL_KEY="ad_dashboard_sheet_url_v1";
 const WEEKDAYS=["日","月","火","水","木","金","土"];
@@ -395,7 +423,10 @@ function renderCalendar(){
         const dt=new Date(calYear,calMonth,cell.d);
         const isToday=dt.getTime()===today.getTime();
         let cls="cal-day-num"+(isToday?" today":di===0?" sun":di===6?" sat":"");
-        d.innerHTML=`<span class="${cls}">${cell.d}</span>`;
+        const dateStr=`${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(cell.d).padStart(2,'0')}`;
+        const dayLabel=`${calMonth+1}/${cell.d}(${WEEKDAYS[dt.getDay()]})`;
+        d.innerHTML=`<span class="${cls}" style="cursor:pointer;" data-date="${dateStr}" data-label="${dayLabel}">${cell.d}</span>`;
+        d.querySelector("span").addEventListener("click",()=>openDatePopup(dateStr,dayLabel));
       } else {
         d.innerHTML=`<span class="cal-day-num other">${cell.d}</span>`;
       }
@@ -507,7 +538,110 @@ document.getElementById("calToday").addEventListener("click",()=>{
   calYear=new Date().getFullYear();calMonth=new Date().getMonth();renderCalendar();
 });
 
-function openCalPopup(item){
+function loadStatus(){
+  fetch(GAS_URL+"?action=getStatus")
+    .then(r=>r.json())
+    .then(d=>{statusData=d;})
+    .catch(()=>{});
+}
+
+function setStatus(key,field,value){
+  fetch(`${GAS_URL}?action=setStatus&key=${encodeURIComponent(key)}&field=${field}&value=${value}`)
+    .then(r=>r.json())
+    .catch(()=>{});
+}
+
+function statusKey(item){
+  return item.name+"|"+item.media;
+}
+
+function openDatePopup(dateStr,dayLabel){
+  const target=new Date(dateStr+"T00:00:00");
+  const items=data.filter(item=>{
+    if(!item.start||!item.end)return false;
+    const s=new Date(item.start+"T00:00:00");
+    const e=new Date(item.end+"T23:59:59");
+    return target>=s&&target<=e;
+  });
+
+  document.getElementById("datePopupTitle").textContent=dayLabel+"の配信案件";
+  const content=document.getElementById("datePopupContent");
+  content.innerHTML="";
+
+  if(!items.length){
+    content.innerHTML=`<p class="date-popup-empty">この日に配信中の案件はありません</p>`;
+    document.getElementById("datePopupOverlay").classList.add("open");
+    return;
+  }
+
+  // 案件名でグループ化
+  const groups={};
+  items.forEach(item=>{
+    if(!groups[item.name])groups[item.name]=[];
+    groups[item.name].push(item);
+  });
+
+  Object.keys(groups).forEach(name=>{
+    const div=document.createElement("div");
+    div.className="status-campaign";
+    div.innerHTML=`<div class="status-campaign-name">${name}</div>`;
+
+    groups[name].forEach(item=>{
+      const key=statusKey(item);
+      const st=statusData[key]||{sokuhochi:false,report:false,seikyusho:false};
+      const [bg]=mediaColor(item.media);
+
+      const mediaDiv=document.createElement("div");
+      mediaDiv.style.cssText="margin-bottom:8px;";
+      mediaDiv.innerHTML=`<span class="badge ${mediaBadgeClass(item.media)}" style="margin-bottom:6px;display:inline-block;">${item.media}</span>`;
+
+      const checks=document.createElement("div");
+      checks.className="status-checks";
+
+      [
+        {field:"sokuhochi",label:"速報値"},
+        {field:"report",label:"レポート"},
+        {field:"seikyusho",label:"請求書提出"},
+      ].forEach(({field,label})=>{
+        const id=`chk-${key}-${field}`.replace(/[^a-zA-Z0-9-]/g,"_");
+        const checked=!!st[field];
+        const row=document.createElement("div");
+        row.className="status-check"+(checked?" checked":"");
+        row.innerHTML=`
+          <input type="checkbox" id="${id}" ${checked?"checked":""}>
+          <label for="${id}">${label}</label>
+          ${checked?'<span style="font-size:11px;color:var(--accent);">✓ 完了</span>':""}
+        `;
+        const cb=row.querySelector("input");
+        cb.addEventListener("change",e=>{
+          const val=e.target.checked;
+          if(!statusData[key])statusData[key]={sokuhochi:false,report:false,seikyusho:false};
+          statusData[key][field]=val;
+          row.className="status-check"+(val?" checked":"");
+          row.querySelector("label").nextSibling&&row.querySelector("label").nextSibling.remove();
+          if(val){
+            const span=document.createElement("span");
+            span.style.cssText="font-size:11px;color:var(--accent);";
+            span.textContent="✓ 完了";
+            row.appendChild(span);
+          }
+          setStatus(key,field,val);
+        });
+        checks.appendChild(row);
+      });
+
+      mediaDiv.appendChild(checks);
+      div.appendChild(mediaDiv);
+    });
+
+    content.appendChild(div);
+  });
+
+  document.getElementById("datePopupOverlay").classList.add("open");
+}
+
+document.getElementById("datePopupClose").addEventListener("click",()=>document.getElementById("datePopupOverlay").classList.remove("open"));
+document.getElementById("datePopupOverlay").addEventListener("click",e=>{if(e.target===document.getElementById("datePopupOverlay"))document.getElementById("datePopupOverlay").classList.remove("open");});
   document.getElementById("calPopupName").textContent=item.name;
   document.getElementById("calPopupMedia").textContent=item.media;
   document.getElementById("calPopupPeriod").textContent=fmtDate(item.start,item.startTime)+" → "+fmtDate(item.end,item.endTime);
@@ -595,6 +729,7 @@ function setUpdatedAt(){
 setUpdatedAt();
 loadData();
 render();
+loadStatus();
 if(localStorage.getItem(SHEET_URL_KEY)){
   document.getElementById("refreshSheetBtn").style.display="inline-block";
   syncFromSheet(false);
