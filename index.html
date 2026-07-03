@@ -647,12 +647,12 @@ function getCampaignDeadlines(name){
 }
 
 function saveDate(key, field, date){
-  fetch(`${GAS_URL}?action=setDate&key=${encodeURIComponent(key)}&field=${encodeURIComponent(field)}&date=${encodeURIComponent(date)}`)
+  fetch(`${GAS_URL}?action=setDate&key=${encodeURIComponent(key)}&field=${encodeURIComponent(field)}&date=${encodeURIComponent(date)}`, {redirect:"follow"})
     .then(r=>r.json()).catch(()=>{});
 }
 
 function loadStatus(){
-  fetch(GAS_URL+"?action=getStatus")
+  fetch(GAS_URL+"?action=getStatus", {redirect:"follow"})
     .then(r=>r.json())
     .then(d=>{
       statusData=d;
@@ -662,7 +662,7 @@ function loadStatus(){
 }
 
 function setStatus(key,field,value){
-  fetch(`${GAS_URL}?action=setStatus&key=${encodeURIComponent(key)}&field=${field}&value=${value}`)
+  fetch(`${GAS_URL}?action=setStatus&key=${encodeURIComponent(key)}&field=${field}&value=${value}`,{redirect:"follow"})
     .then(r=>r.json())
     .catch(()=>{});
 }
