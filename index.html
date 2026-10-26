@@ -530,30 +530,25 @@ function renderCalendar(){
       cell_div.style.cssText="padding:0 2px;min-height:4px;";
       if(cell.cur){
         const cellStr=`${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(cell.d).padStart(2,'0')}`;
-        // 速報値（媒体ごと）
+        const reportSeen=new Set();
         data.forEach(item=>{
-          getDeadlines(item).forEach(dl=>{
-            if(dl.date===cellStr){
-              const badge=document.createElement("div");
-              badge.className=`deadline-badge ${dl.type}${dl.done?" done":""}`;
-              badge.textContent=`${item.name}（${item.media}） ${dl.label}`;
-              cell_div.appendChild(badge);
-            }
-          });
-        });
-        // レポート・請求書（案件ごと・重複除去）
-        const seen=new Set();
-        data.forEach(item=>{
-          if(seen.has(item.name)) return;
-          getCampaignDeadlines(item.name).forEach(dl=>{
-            if(dl.date===cellStr){
-              seen.add(item.name);
-              const badge=document.createElement("div");
-              badge.className=`deadline-badge ${dl.type}${dl.done?" done":""}`;
-              badge.textContent=`${item.name} ${dl.label}`;
-              cell_div.appendChild(badge);
-            }
-          });
+          const key=statusKey(item);
+          const st=statusData[key]||{};
+          // 速報値（媒体ごと）
+          if(item.sokuchoDate===cellStr){
+            const badge=document.createElement("div");
+            badge.className=`deadline-badge sokcho${st.sokuhochi?" done":""}`;
+            badge.textContent=`${item.name}（${item.media}） 速報値`;
+            cell_div.appendChild(badge);
+          }
+          // レポート（案件ごと・重複除去）
+          if(item.reportDate===cellStr&&!reportSeen.has(item.name)){
+            reportSeen.add(item.name);
+            const badge=document.createElement("div");
+            badge.className=`deadline-badge report${st.report?" done":""}`;
+            badge.textContent=`${item.name} レポート`;
+            cell_div.appendChild(badge);
+          }
         });
       }
       badgeDiv.appendChild(cell_div);
@@ -605,50 +600,24 @@ document.getElementById("calToday").addEventListener("click",()=>{
   calYear=new Date().getFullYear();calMonth=new Date().getMonth();renderCalendar();
 });
 
-function addBusinessDays(dateStr, days){
-  const d = new Date(dateStr+"T00:00:00");
-  let count = 0;
-  while(count < days){
-    d.setDate(d.getDate()+1);
-    const dow = d.getDay();
-    if(dow !== 0 && dow !== 6) count++;
-  }
-  return d.toISOString().slice(0,10);
-}
-
 function statusKey(item){ return item.name+"|"+item.media; }
-function campaignKey(name){ return name+"|_campaign"; }
 
 function getDeadlines(item){
+  // スプレッドシートのデータを直接使う（sokuchoDate・reportDateはitem自体に持たせる）
   const key = statusKey(item);
   const st = statusData[key] || {};
   const deadlines = [];
-  if(item.end){
-    deadlines.push({type:"sokcho", label:"速報値", field:"sokuchoDate", date:st.sokuchoDate||"", done:!!st.sokuhochi, key});
+  if(item.sokuchoDate){
+    deadlines.push({type:"sokcho", label:"速報値", date:item.sokuchoDate, done:!!st.sokuhochi, key, name:item.name, media:item.media});
+  }
+  if(item.reportDate){
+    // レポートは案件単位なので同じ案件名の最初の媒体のみ
+    const firstMedia = data.filter(d=>d.name===item.name)[0];
+    if(firstMedia && firstMedia.media===item.media){
+      deadlines.push({type:"report", label:"レポート", date:item.reportDate, done:!!st.report, key, name:item.name, media:item.media});
+    }
   }
   return deadlines;
-}
-
-function getCampaignDeadlines(name){
-  const ckey = campaignKey(name);
-  const st = statusData[ckey] || {};
-  // 案件の最終終了日を取得
-  const items = data.filter(d=>d.name===name);
-  const latestEnd = items.reduce((max,i)=>i.end>max?i.end:max, items[0]?.end||"");
-  const deadlines = [];
-  if(latestEnd){
-    const autoReport = new Date(latestEnd+"T00:00:00");
-    autoReport.setDate(autoReport.getDate()+7);
-    const autoSeikyu = addBusinessDays(latestEnd,3);
-    deadlines.push({type:"report",    label:"レポート",   field:"reportDate",    date:st.reportDate||autoReport.toISOString().slice(0,10), done:!!st.report,    key:ckey});
-    deadlines.push({type:"seikyusho", label:"請求書提出", field:"seikyushoDate", date:st.seikyushoDate||autoSeikyu, done:!!st.seikyusho, key:ckey});
-  }
-  return deadlines;
-}
-
-function saveDate(key, field, date){
-  fetch(`${GAS_URL}?action=setDate&key=${encodeURIComponent(key)}&field=${encodeURIComponent(field)}&date=${encodeURIComponent(date)}`, {redirect:"follow"})
-    .then(r=>r.json()).catch(()=>{});
 }
 
 function loadStatus(){
@@ -698,127 +667,57 @@ function openDatePopup(dateStr,dayLabel){
     div.className="status-campaign";
     div.innerHTML=`<div class="status-campaign-name">${name}</div>`;
 
-    // レポート・請求書（案件単位）
-    const campDeadlines = getCampaignDeadlines(name);
-    const campPickerWrap = document.createElement("div");
-    campPickerWrap.style.cssText="margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--line);";
-    campDeadlines.forEach(dl=>{
-      const pickerDiv=document.createElement("div");
-      pickerDiv.className="sokcho-date-row";
-      const inputId=`date-${dl.field}-${dl.key.replace(/[^a-zA-Z0-9]/g,'_')}`;
-      const icon=dl.type==="report"?"📄":"🧾";
-      pickerDiv.innerHTML=`
-        <label>${icon} ${dl.label}</label>
-        <input type="date" id="${inputId}" value="${dl.date||''}">
-        <button data-key="${dl.key}" data-field="${dl.field}">設定</button>
-      `;
-      // チェックボックス
-      const checkField=dl.type==="report"?"report":"seikyusho";
-      const cst=statusData[dl.key]||{};
-      const checked=!!cst[checkField];
-      const checkRow=document.createElement("div");
-      checkRow.className="status-check"+(checked?" checked":"");
-      const cid=`chk-${dl.key}-${checkField}`.replace(/[^a-zA-Z0-9-]/g,"_");
-      checkRow.innerHTML=`<input type="checkbox" id="${cid}" ${checked?"checked":""}><label for="${cid}">完了</label>${checked?'<span style="font-size:11px;color:var(--accent);">✓ 完了</span>':""}`;
-      checkRow.querySelector("input").addEventListener("change",e=>{
-        const val=e.target.checked;
-        if(!statusData[dl.key])statusData[dl.key]={};
-        statusData[dl.key][checkField]=val;
-        checkRow.className="status-check"+(val?" checked":"");
-        const sp=checkRow.querySelector("span");
-        if(sp)sp.remove();
-        if(val){const s=document.createElement("span");s.style.cssText="font-size:11px;color:var(--accent);";s.textContent="✓ 完了";checkRow.appendChild(s);}
-        setStatus(dl.key,checkField,val);
-      });
-      pickerDiv.querySelector("button").addEventListener("click",e=>{
-        const k=e.target.dataset.key;
-        const f=e.target.dataset.field;
-        const val=document.getElementById(`date-${f}-${k.replace(/[^a-zA-Z0-9]/g,'_')}`).value;
-        if(!val)return;
-        if(!statusData[k])statusData[k]={};
-        statusData[k][f]=val;
-        saveDate(k,f,val);
-        renderCalendar();
-        e.target.textContent="✓";
-        setTimeout(()=>e.target.textContent="設定",1500);
-      });
-      campPickerWrap.appendChild(pickerDiv);
-      campPickerWrap.appendChild(checkRow);
-    });
-    div.appendChild(campPickerWrap);
-
     groups[name].forEach(item=>{
       const key=statusKey(item);
-      const st=statusData[key]||{sokuhochi:false,report:false,seikyusho:false};
-      const [bg]=mediaColor(item.media);
+      const st=statusData[key]||{};
 
       const mediaDiv=document.createElement("div");
       mediaDiv.style.cssText="margin-bottom:12px;";
-      mediaDiv.innerHTML=`<span class="badge ${mediaBadgeClass(item.media)}" style="margin-bottom:6px;display:inline-block;">${item.media}</span>`;
 
-      // 速報値日付ピッカー（媒体ごと）
-      const deadlines = getDeadlines(item);
-      const pickerWrap = document.createElement("div");
-      pickerWrap.style.cssText="margin-bottom:8px;";
-      deadlines.forEach(dl=>{
-        const pickerDiv=document.createElement("div");
-        pickerDiv.className="sokcho-date-row";
-        const inputId=`date-${dl.field}-${key.replace(/[^a-zA-Z0-9]/g,'_')}`;
-        pickerDiv.innerHTML=`
-          <label>📊 速報値</label>
-          <input type="date" id="${inputId}" value="${dl.date||''}">
-          <button data-key="${key}" data-field="${dl.field}">設定</button>
-        `;
-        pickerDiv.querySelector("button").addEventListener("click", e=>{
-          const k=e.target.dataset.key;
-          const f=e.target.dataset.field;
-          const val=document.getElementById(`date-${f}-${k.replace(/[^a-zA-Z0-9]/g,'_')}`).value;
-          if(!val) return;
-          if(!statusData[k])statusData[k]={};
-          statusData[k][f]=val;
-          saveDate(k, f, val);
-          renderCalendar();
-          e.target.textContent="✓";
-          setTimeout(()=>e.target.textContent="設定", 1500);
-        });
-        pickerWrap.appendChild(pickerDiv);
-      });
-      mediaDiv.appendChild(pickerWrap);
+      // 媒体バッジ + 速報値期限表示
+      const sokuchoLabel=item.sokuchoDate?` <span style="font-size:11px;color:var(--sub);">期限: ${fmtDate(item.sokuchoDate)}</span>`:"";
+      mediaDiv.innerHTML=`<span class="badge ${mediaBadgeClass(item.media)}" style="margin-bottom:6px;display:inline-block;">${item.media}</span>${sokuchoLabel}`;
 
       const checks=document.createElement("div");
       checks.className="status-checks";
 
-      [
-        {field:"sokuhochi",label:"速報値"},
-        {field:"report",label:"レポート"},
-        {field:"seikyusho",label:"請求書提出"},
-      ].forEach(({field,label})=>{
-        const id=`chk-${key}-${field}`.replace(/[^a-zA-Z0-9-]/g,"_");
-        const checked=!!st[field];
-        const row=document.createElement("div");
-        row.className="status-check"+(checked?" checked":"");
-        row.innerHTML=`
-          <input type="checkbox" id="${id}" ${checked?"checked":""}>
-          <label for="${id}">${label}</label>
-          ${checked?'<span style="font-size:11px;color:var(--accent);">✓ 完了</span>':""}
-        `;
-        const cb=row.querySelector("input");
-        cb.addEventListener("change",e=>{
-          const val=e.target.checked;
-          if(!statusData[key])statusData[key]={sokuhochi:false,report:false,seikyusho:false};
-          statusData[key][field]=val;
-          row.className="status-check"+(val?" checked":"");
-          row.querySelector("label").nextSibling&&row.querySelector("label").nextSibling.remove();
-          if(val){
-            const span=document.createElement("span");
-            span.style.cssText="font-size:11px;color:var(--accent);";
-            span.textContent="✓ 完了";
-            row.appendChild(span);
-          }
-          setStatus(key,field,val);
-        });
-        checks.appendChild(row);
+      // 速報値チェック（媒体ごと）
+      const sokchoChecked=!!st.sokuhochi;
+      const sokchoRow=document.createElement("div");
+      sokchoRow.className="status-check"+(sokchoChecked?" checked":"");
+      const sokchoId=`chk-${key}-sokuhochi`.replace(/[^a-zA-Z0-9-]/g,"_");
+      sokchoRow.innerHTML=`<input type="checkbox" id="${sokchoId}" ${sokchoChecked?"checked":""}><label for="${sokchoId}">📊 速報値</label>${sokchoChecked?'<span style="font-size:11px;color:var(--accent);">✓ 完了</span>':""}`;
+      sokchoRow.querySelector("input").addEventListener("change",e=>{
+        const val=e.target.checked;
+        if(!statusData[key])statusData[key]={};
+        statusData[key].sokuhochi=val;
+        sokchoRow.className="status-check"+(val?" checked":"");
+        const sp=sokchoRow.querySelector("span");if(sp)sp.remove();
+        if(val){const s=document.createElement("span");s.style.cssText="font-size:11px;color:var(--accent);";s.textContent="✓ 完了";sokchoRow.appendChild(s);}
+        setStatus(key,"sokuhochi",val);
       });
+      checks.appendChild(sokchoRow);
+
+      // レポートチェック（案件の最初の媒体のみ表示）
+      const firstOfCampaign=data.filter(d=>d.name===name)[0];
+      if(firstOfCampaign&&firstOfCampaign.media===item.media){
+        const reportChecked=!!st.report;
+        const reportLabel=item.reportDate?` <span style="font-size:11px;color:var(--sub);">期限: ${fmtDate(item.reportDate)}</span>`:"";
+        const reportRow=document.createElement("div");
+        reportRow.className="status-check"+(reportChecked?" checked":"");
+        const reportId=`chk-${key}-report`.replace(/[^a-zA-Z0-9-]/g,"_");
+        reportRow.innerHTML=`<input type="checkbox" id="${reportId}" ${reportChecked?"checked":""}><label for="${reportId}">📄 レポート${reportLabel}</label>${reportChecked?'<span style="font-size:11px;color:var(--accent);">✓ 完了</span>':""}`;
+        reportRow.querySelector("input").addEventListener("change",e=>{
+          const val=e.target.checked;
+          if(!statusData[key])statusData[key]={};
+          statusData[key].report=val;
+          reportRow.className="status-check"+(val?" checked":"");
+          const sp=reportRow.querySelector("span");if(sp)sp.remove();
+          if(val){const s=document.createElement("span");s.style.cssText="font-size:11px;color:var(--accent);";s.textContent="✓ 完了";reportRow.appendChild(s);}
+          setStatus(key,"report",val);
+        });
+        checks.appendChild(reportRow);
+      }
 
       mediaDiv.appendChild(checks);
       div.appendChild(mediaDiv);
@@ -893,7 +792,8 @@ function parseCSV(text){
     const budget=Number(String(cols[4]).replace(/[^0-9.-]/g,""))||0;
     const start=parseDate(cols[5]),end=parseDate(cols[6]);
     const startTime=cols[7]||"",endTime=cols[8]||"";
-    return{id:stableId(name,media,start),name,media,gross,feeRate,budget,start,end,startTime,endTime,done:false,fromSheet:true};
+    const sokuchoDate=parseDate(cols[9]||"");const reportDate=parseDate(cols[11]||"");
+    return{id:stableId(name,media,start),name,media,gross,feeRate,budget,start,end,startTime,endTime,sokuchoDate,reportDate,done:false,fromSheet:true};
   });
 }
 function mergeSheetData(imported){
