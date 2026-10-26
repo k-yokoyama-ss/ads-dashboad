@@ -638,19 +638,23 @@ function setStatus(key,field,value){
 
 function openDatePopup(dateStr,dayLabel){
   const target=new Date(dateStr+"T00:00:00");
+  // 配信中 OR その日に速報値・レポート期限がある案件を抽出
   const items=data.filter(item=>{
     if(!item.start||!item.end)return false;
     const s=new Date(item.start+"T00:00:00");
     const e=new Date(item.end+"T23:59:59");
-    return target>=s&&target<=e;
+    const inPeriod=target>=s&&target<=e;
+    const hasSokcho=item.sokuchoDate===dateStr;
+    const hasReport=item.reportDate===dateStr;
+    return inPeriod||hasSokcho||hasReport;
   });
 
-  document.getElementById("datePopupTitle").textContent=dayLabel+"の配信案件";
+  document.getElementById("datePopupTitle").textContent=dayLabel+"の案件";
   const content=document.getElementById("datePopupContent");
   content.innerHTML="";
 
   if(!items.length){
-    content.innerHTML=`<p class="date-popup-empty">この日に配信中の案件はありません</p>`;
+    content.innerHTML=`<p class="date-popup-empty">この日に関連する案件はありません</p>`;
     document.getElementById("datePopupOverlay").classList.add("open");
     return;
   }
